@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XAU/USD Martingale Drawdown Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ── Theme tokens ── */
+:root[data-theme="dark"] {
+  --bg:          #0d0c09;
+  --surface:     #161410;
+  --surface2:    #1e1b14;
+  --border:      #2a261a;
+  --border2:     #332e20;
+  --text:        #ede3c4;
+  --text-muted:  #7a7060;
+  --text-dim:    #4a4438;
+  --gold:        #c9a84c;
+  --gold-light:  #e8c96a;
+  --gold-dim:    #6b5a28;
+  --red:         #e05050;
+  --red-dim:     rgba(224,80,80,0.10);
+  --red-border:  rgba(224,80,80,0.28);
+  --green:       #4caf6a;
+  --green-dim:   rgba(76,175,106,0.10);
+  --amber:       #e09a30;
+  --amber-dim:   rgba(224,154,48,0.10);
+  --gold-dim-bg: rgba(201,168,76,0.07);
+  --gold-border: rgba(201,168,76,0.20);
+  --input-bg:    #0f0e0b;
+  --shadow:      0 4px 24px rgba(0,0,0,0.5);
+  --chart-grid:  rgba(42,38,26,0.7);
+  --toggle-bg:   #1e1b14;
+  --toggle-knob: #c9a84c;
+}
+:root[data-theme="light"] {
+  --bg:          #f5f0e4;
+  --surface:     #fdfaf3;
+  --surface2:    #f0ebe0;
+  --border:      #d8ceb4;
+  --border2:     #c8bea4;
+  --text:        #2c2618;
+  --text-muted:  #7a6e52;
+  --text-dim:    #b0a488;
+  --gold:        #9a7a28;
+  --gold-light:  #7a5e18;
+  --gold-dim:    #c8b070;
+  --red:         #c03030;
+  --red-dim:     rgba(192,48,48,0.08);
+  --red-border:  rgba(192,48,48,0.25);
+  --green:       #2a7a48;
+  --green-dim:   rgba(42,122,72,0.08);
+  --amber:       #b07020;
+  --amber-dim:   rgba(176,112,32,0.08);
+  --gold-dim-bg: rgba(154,122,40,0.06);
+  --gold-border: rgba(154,122,40,0.20);
+  --input-bg:    #fdfaf3;
+  --shadow:      0 4px 24px rgba(0,0,0,0.10);
+  --chart-grid:  rgba(180,168,140,0.35);
+  --toggle-bg:   #e0d8c4;
+  --toggle-knob: #9a7a28;
+}
+
+/* ── Reset & base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text);
+  min-height: 100vh;
+  padding: 0;
+  transition: background 0.25s, color 0.25s;
+}
+
+/* ── Layout ── */
+.app {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 3rem;
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+.header-left { display: flex; align-items: center; gap: 14px; }
+.logo {
+  width: 42px; height: 42px;
+  background: linear-gradient(135deg, var(--gold) 0%, var(--gold-light) 100%);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-weight: 700; font-size: 13px;
+  color: #0d0c09;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(201,168,76,0.28);
+}
+.title { font-size: 18px; font-weight: 600; color: var(--gold); letter-spacing: -0.01em; }
+.subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; font-family: 'IBM Plex Mono', monospace; }
+
+/* ── Dark/Light toggle ── */
+.theme-toggle {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; flex-shrink: 0; padding-top: 4px;
+}
+.theme-label { font-size: 11px; color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; user-select: none; }
+.toggle-track {
+  width: 40px; height: 22px;
+  background: var(--toggle-bg);
+  border: 1px solid var(--border2);
+  border-radius: 11px;
+  position: relative;
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--toggle-knob);
+  transition: transform 0.2s cubic-bezier(.4,0,.2,1), background 0.2s;
+}
+[data-theme="light"] .toggle-track::after { transform: translateX(18px); }
+.theme-icon { font-size: 14px; }
+
+/* ── Info box ── */
+.info-box {
+  background: var(--gold-dim-bg);
+  border: 1px solid var(--gold-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--gold);
+  margin-bottom: 1.25rem;
+  font-family: 'IBM Plex Mono', monospace;
+  line-height: 1.6;
+}
+
+/* ── Card ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  transition: background 0.25s, border-color 0.25s;
+}
+.card-title {
+  font-size: 10px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 0.85rem;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Grid ── */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 600px) {
+  .grid3 { grid-template-columns: 1fr 1fr; }
+  .grid4 { grid-template-columns: 1fr 1fr; }
+}
+
+/* ── Fields ── */
+.field { display: flex; flex-direction: column; gap: 5px; }
+.field label {
+  font-size: 10px; font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.07em;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.field input, .field select {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.15s, background 0.25s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.field input:focus, .field select:focus {
+  border-color: var(--gold-dim);
+  box-shadow: 0 0 0 2px rgba(201,168,76,0.10);
+}
+.field select { cursor: pointer; }
+
+/* ── Separator ── */
+.sep { height: 1px; background: var(--border); margin: 12px 0; }
+
+/* ── Button row ── */
+.btn-row { display: flex; gap: 10px; margin-bottom: 1.25rem; align-items: center; }
+.btn {
+  padding: 9px 18px;
+  border-radius: 7px; border: none;
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 13px; font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn:active { transform: scale(0.97); }
+.btn-primary { background: var(--gold); color: #0d0c09; }
+.btn-secondary {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border2);
+}
+.btn:hover { opacity: 0.82; }
+
+.autocalc-badge {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--text-muted);
+  margin-left: auto;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.autocalc-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+/* ── Warning ── */
+.warning-box {
+  background: var(--red-dim);
+  border: 1px solid var(--red-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px; color: var(--red);
+  margin-bottom: 1rem;
+  display: none;
+  font-family: 'IBM Plex Mono', monospace;
+  line-height: 1.7;
+}
+
+/* ── Stats grid ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 1.1rem;
+}
+.stat {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  transition: background 0.25s, border-color 0.25s;
+}
+.stat-label {
+  font-size: 10px; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 5px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.stat-val { font-size: 16px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+.stat-val.red    { color: var(--red); }
+.stat-val.green  { color: var(--green); }
+.stat-val.amber  { color: var(--amber); }
+.stat-val.gold   { color: var(--gold); }
+.stat-val.muted  { color: var(--text-muted); }
+
+/* ── Section title ── */
+.section-title {
+  font-size: 10px; font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+/* ── Chart ── */
+.chart-wrap {
+  position: relative; width: 100%; height: 200px;
+  margin-bottom: 1rem;
+}
+.chart-legend {
+  display: flex; gap: 16px; margin-bottom: 8px;
+  font-size: 11px; color: var(--text-muted);
+  flex-wrap: wrap;
+  font-family: 'IBM Plex Mono', monospace;
+}
+.chart-legend span {
+  display: flex; align-items: center; gap: 5px;
+}
+.legend-line {
+  width: 14px; height: 2px; display: inline-block; border-radius: 2px;
+}
+
+/* ── Table ── */
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: collapse;
+  font-size: 12px; font-family: 'IBM Plex Mono', monospace;
+}
+th {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-muted);
+  padding: 6px 10px; text-align: right;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  background: var(--surface);
+}
+th:first-child { text-align: left; }
+td {
+  padding: 7px 10px; text-align: right;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  transition: background 0.25s;
+}
+td:first-child { text-align: left; color: var(--text-muted); }
+tr.danger td { background: var(--red-dim); }
+tr:last-child td { border-bottom: none; }
+
+.pill {
+  display: inline-block; padding: 2px 7px;
+  border-radius: 4px; font-size: 10px; font-weight: 500;
+}
+.pill-buy  { background: var(--green-dim); color: var(--green); }
+.pill-sell { background: var(--red-dim);   color: var(--red);   }
+
+/* ── Animations ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeIn 0.25s ease both; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="logo">Au</div>
+      <div>
+        <div class="title">XAU/USD Martingale Calculator</div>
+        <div class="subtitle">No stop-loss · Geometric lot progression · Close on profit</div>
+      </div>
+    </div>
+    <div class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode" role="button" tabindex="0" aria-label="Toggle dark/light mode">
+      <span class="theme-icon" id="themeIcon">🌙</span>
+      <div class="toggle-track"></div>
+      <span class="theme-label" id="themeLabel">DARK</span>
+    </div>
+  </div>
+
+  <!-- Info -->
+  <div class="info-box">
+    Strategy: Open trades at each step with multiplied lot size. All trades close together when total portfolio profit target is reached.
+  </div>
+
+  <!-- Inputs card -->
+  <div class="card">
+    <div class="card-title">Account &amp; Trade Settings</div>
+
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="field">
+        <label>Account Balance (USD)</label>
+        <input id="balance" type="number" value="10000" min="100" step="100">
+      </div>
+      <div class="field">
+        <label>Account Leverage</label>
+        <select id="leverage">
+          <option value="1">1:1 (No leverage)</option>
+          <option value="10">1:10</option>
+          <option value="20">1:20</option>
+          <option value="50">1:50</option>
+          <option value="100" selected>1:100</option>
+          <option value="200">1:200</option>
+          <option value="500">1:500</option>
+          <option value="1000">1:1000</option>
+          <option value="2000">1:2000</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-bottom:12px">
+      <div class="field">
+        <label>Entry Price (XAU/USD)</label>
+        <input id="entry" type="number" value="3320" step="0.01">
+      </div>
+      <div class="field">
+        <label>Direction</label>
+        <select id="direction">
+          <option value="buy">Buy (Long)</option>
+          <option value="sell">Sell (Short)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="card-title">Martingale Parameters</div>
+    <div class="grid3" style="margin-bottom:12px">
+      <div class="field">
+        <label>Base Lot Size</label>
+        <input id="baseLot" type="number" value="0.01" min="0.01" step="0.01">
+      </div>
+      <div class="field">
+        <label>Step Size (USD)</label>
+        <input id="step" type="number" value="100" min="1" step="1">
+      </div>
+      <div class="field">
+        <label>Target Profit (USD)</label>
+        <input id="target" type="number" value="50" min="1" step="1">
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label>Max Martingale Levels</label>
+        <input id="levels" type="number" value="6" min="1" max="12" step="1">
+      </div>
+      <div class="field">
+        <label>Lot Multiplier</label>
+        <input id="multiplier" type="number" value="2" min="1.1" max="4" step="0.1">
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="btn-row">
+    <button class="btn btn-secondary" onclick="resetDefaults()">↺ Reset</button>
+    <div class="autocalc-badge">
+      <span class="autocalc-dot" id="autoCalcDot"></span>
+      <span>Auto-calculating</span>
+    </div>
+  </div>
+
+  <!-- Warning -->
+  <div id="warning" class="warning-box"></div>
+
+  <!-- Stats -->
+  <div id="stats" class="stat-grid" style="display:none"></div>
+
+  <!-- Chart -->
+  <div id="chart-section" class="card" style="display:none">
+    <div class="section-title">Equity Drawdown Curve</div>
+    <div class="chart-legend" id="chartLegend">
+      <span><span class="legend-line" style="background:#c9a84c"></span>Free Margin</span>
+      <span><span class="legend-line" style="background:#e05050;opacity:0.8"></span>Float P/L</span>
+      <span><span class="legend-line" style="background:#4caf6a"></span>Equity</span>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="drawdownChart" role="img" aria-label="Equity drawdown curve showing account balance at each martingale level"></canvas>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div id="table-section" class="card" style="display:none">
+    <div class="section-title">Trade Ladder</div>
+    <div class="table-wrap">
+      <table id="tradeTable">
+        <thead>
+          <tr>
+            <th>Level</th>
+            <th>Side</th>
+            <th>Lot Size</th>
+            <th>Open Price</th>
+            <th>Avg Entry</th>
+            <th>Margin Req</th>
+            <th>Cum. Margin</th>
+            <th>Portfolio P/L</th>
+            <th>Breakeven</th>
+            <th>Free Margin</th>
+          </tr>
+        </thead>
+        <tbody id="tradeBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /.app -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+// ── Constants ──────────────────────────────────────────────────────────
+const GOLD_LOT_OZ = 100; // 1 standard lot of XAU = 100 troy ounces
+let chart = null;
+
+// ── Theme ──────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const nextTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', nextTheme);
+  document.getElementById('themeIcon').textContent  = nextTheme === 'dark' ? '🌙' : '☀️';
+  document.getElementById('themeLabel').textContent = nextTheme === 'dark' ? 'DARK' : 'LIGHT';
+  // Rebuild chart with updated colors
+  calculate();
+}
+document.querySelector('.theme-toggle').addEventListener('keydown', e => {
+  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTheme(); }
+});
+
+// ── Formatters ─────────────────────────────────────────────────────────
+function fmt(n, d = 2) {
+  return n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function fmtUSD(n) {
+  return (n < 0 ? '-$' : '$') + fmt(Math.abs(n));
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+// ── Main calculation ───────────────────────────────────────────────────
+function calculate() {
+  const balance    = parseFloat(document.getElementById('balance').value)    || 0;
+  const leverage   = parseFloat(document.getElementById('leverage').value)   || 1;
+  const entry      = parseFloat(document.getElementById('entry').value)      || 0;
+  const direction  = document.getElementById('direction').value;
+  const baseLot    = parseFloat(document.getElementById('baseLot').value)    || 0.01;
+  const step       = parseFloat(document.getElementById('step').value)       || 1;
+  const target     = parseFloat(document.getElementById('target').value)     || 1;
+  const levels     = parseInt(document.getElementById('levels').value)       || 1;
+  const multiplier = parseFloat(document.getElementById('multiplier').value) || 2;
+
+  // Guard against degenerate inputs
+  if (balance <= 0 || entry <= 0 || baseLot <= 0 || step <= 0 || target <= 0) return;
+
+  const trades = [];
+  let cumMargin = 0;
+  let cumLots   = 0;
+  let cumCost   = 0;      // sum of (lot * openPrice) for weighted avg entry
+  let anyBust   = false;
+
+  for (let i = 0; i < levels; i++) {
+    // FIX: round lot to 2 decimal places to avoid floating-point drift
+    const lot = Math.round(baseLot * Math.pow(multiplier, i) * 100) / 100;
+
+    // Price at which THIS trade opens (market has moved against us by i steps)
+    const openPrice = direction === 'buy'
+      ? entry - step * i
+      : entry + step * i;
+
+    // Margin required for this individual trade
+    const marginReq = (lot * GOLD_LOT_OZ * openPrice) / leverage;
+
+    cumMargin += marginReq;
+    cumLots   += lot;
+    cumCost   += lot * openPrice;   // weighted sum for average entry calculation
+
+    // Average entry across all open trades so far
+    const avgEntry = cumCost / cumLots;
+
+    // Free margin: balance minus total committed margin
+    const freeMargin = balance - cumMargin;
+
+    // Breakeven price: price at which total portfolio profit = target
+    // profit = (closePrice - avgEntry) * cumLots * GOLD_LOT_OZ  (buy)
+    // profit = (avgEntry - closePrice) * cumLots * GOLD_LOT_OZ  (sell)
+    // solving for closePrice:
+    const beOffset = target / (cumLots * GOLD_LOT_OZ);
+    const breakeven = direction === 'buy'
+      ? avgEntry + beOffset
+      : avgEntry - beOffset;
+
+    // Portfolio unrealised P/L if market is currently at openPrice (this level's price)
+    // i.e. the market just moved to the point where this new trade was opened
+    // FIX: was incorrectly using 'entry' (level-0 price) instead of cumulative avgEntry
+    const portfolioPL = direction === 'buy'
+      ? (openPrice - avgEntry) * cumLots * GOLD_LOT_OZ
+      : (avgEntry - openPrice) * cumLots * GOLD_LOT_OZ;
+
+    const isBust = freeMargin < 0;
+    if (isBust) anyBust = true;
+
+    trades.push({
+      level: i + 1,
+      lot,
+      openPrice,
+      avgEntry,
+      marginReq,
+      cumMargin,
+      portfolioPL,
+      breakeven,
+      freeMargin,
+      isBust,
+    });
+  }
+
+  // ── Total lots (geometric series): sum_{i=0}^{n-1} baseLot * mult^i
+  // FIX: original code had a conditional that was always truthy (array is never falsy after push)
+  //      and computed a wrong independent formula; now use the actual accumulated cumLots
+  const totalLots = cumLots;
+
+  // ── Summary metrics ──
+  const last            = trades[trades.length - 1];
+  const totalMarginUsed = last.cumMargin;
+  const marginPct       = (totalMarginUsed / balance) * 100;
+  const worstPL         = last.portfolioPL;          // most negative at final level
+  const maxDrawdownPct  = ((balance - last.freeMargin) / balance) * 100; // FIX: was never displayed
+
+  // ── Warning banner ──────────────────────────────────────────────────
+  const warnEl = document.getElementById('warning');
+  if (anyBust) {
+    const bustIdx   = trades.findIndex(t => t.isBust);
+    const bustLevel = bustIdx + 1;
+    const needed    = parseFloat(trades[bustIdx].cumMargin.toFixed(2));
+    const shortfall = parseFloat((needed - balance).toFixed(2));
+
+    const lotNote = baseLot <= 0.01
+      ? `<br><span style="color:var(--amber)">⚠ Base lot is already at the minimum (0.01). Reducing lot size further would break the martingale progression. Consider reducing the number of levels or increasing account balance.</span>`
+      : `<br><span style="color:var(--amber)">ℹ Reducing base lot below ${fmt(baseLot, 2)} would change the entire progression. Consider fewer levels instead.</span>`;
+
+    warnEl.style.display = 'block';
+    warnEl.innerHTML =
+      `⚠ <strong>Margin Call Risk at Level ${bustLevel}</strong>`
+      + `<br>Cumulative margin required: <strong>${fmtUSD(needed)}</strong> &nbsp;|&nbsp; Account balance: <strong>${fmtUSD(balance)}</strong>`
+      + `<br>You need <strong>${fmtUSD(shortfall)}</strong> more than your current balance at level ${bustLevel}.`
+      + lotNote;
+  } else {
+    warnEl.style.display = 'none';
+  }
+
+  // ── Stats ────────────────────────────────────────────────────────────
+  const statsEl = document.getElementById('stats');
+  statsEl.style.display = 'grid';
+  statsEl.innerHTML = `
+    <div class="stat animate-in">
+      <div class="stat-label">Total Lots</div>
+      <div class="stat-val gold">${fmt(totalLots, 2)}</div>
+    </div>
+    <div class="stat animate-in">
+      <div class="stat-label">Total Margin</div>
+      <div class="stat-val ${marginPct > 80 ? 'red' : 'amber'}">${fmtUSD(totalMarginUsed)}</div>
+    </div>
+    <div class="stat animate-in">
+      <div class="stat-label">Margin Used %</div>
+      <div class="stat-val ${marginPct > 80 ? 'red' : marginPct > 50 ? 'amber' : 'green'}">${fmt(marginPct, 1)}%</div>
+    </div>
+    <div class="stat animate-in">
+      <div class="stat-label">Free Margin</div>
+      <div class="stat-val ${last.freeMargin < 0 ? 'red' : last.freeMargin < balance * 0.2 ? 'amber' : 'green'}">${fmtUSD(last.freeMargin)}</div>
+    </div>
+    <div class="stat animate-in">
+      <div class="stat-label">Worst Float P/L</div>
+      <div class="stat-val red">${fmtUSD(worstPL)}</div>
+    </div>
+    <div class="stat animate-in">
+      <div class="stat-label">Max Drawdown</div>
+      <div class="stat-val ${maxDrawdownPct > 80 ? 'red' : maxDrawdownPct > 50 ? 'amber' : 'muted'}">${fmt(maxDrawdownPct, 1)}%</div>
+    </div>
+    <div class="stat animate-in">
+      <div class="stat-label">Breakeven (L${levels})</div>
+      <div class="stat-val gold">$${fmt(last.breakeven, 2)}</div>
+    </div>
+    <div class="stat animate-in">
+      <div class="stat-label">Target Profit</div>
+      <div class="stat-val green">${fmtUSD(target)}</div>
+    </div>
+  `;
+
+  // ── Table ────────────────────────────────────────────────────────────
+  const tbody = document.getElementById('tradeBody');
+  tbody.innerHTML = '';
+  trades.forEach(t => {
+    const rowClass = t.isBust ? 'danger' : '';
+    const plColor  = t.portfolioPL >= 0 ? 'var(--green)' : 'var(--red)';
+    const fmColor  = t.freeMargin  < 0  ? 'var(--red)'
+                   : t.freeMargin < balance * 0.2 ? 'var(--amber)' : 'var(--text)';
+    tbody.innerHTML += `
+      <tr class="${rowClass}">
+        <td><span style="color:var(--gold);font-weight:600">L${t.level}</span></td>
+        <td><span class="pill pill-${direction}">${direction === 'buy' ? 'BUY' : 'SELL'}</span></td>
+        <td>${fmt(t.lot, 2)}</td>
+        <td>${fmt(t.openPrice, 2)}</td>
+        <td style="color:var(--gold)">${fmt(t.avgEntry, 2)}</td>
+        <td>${fmtUSD(t.marginReq)}</td>
+        <td>${fmtUSD(t.cumMargin)}</td>
+        <td style="color:${plColor}">${fmtUSD(t.portfolioPL)}</td>
+        <td style="color:var(--gold)">${fmt(t.breakeven, 2)}</td>
+        <td style="color:${fmColor}">${fmtUSD(t.freeMargin)}</td>
+      </tr>`;
+  });
+
+  // ── Chart ────────────────────────────────────────────────────────────
+  document.getElementById('chart-section').style.display = 'block';
+  document.getElementById('table-section').style.display = 'block';
+  renderChart(trades, balance);
+}
+
+// ── Chart rendering ────────────────────────────────────────────────────
+function renderChart(trades, balance) {
+  const labels     = trades.map(t => `L${t.level}`);
+  const balData    = trades.map(t => parseFloat(t.freeMargin.toFixed(2)));
+  const plData     = trades.map(t => parseFloat(t.portfolioPL.toFixed(2)));
+  const equityData = trades.map(t => parseFloat((t.freeMargin + t.portfolioPL).toFixed(2)));
+
+  if (chart) { chart.destroy(); chart = null; }
+
+  const isDark    = document.documentElement.getAttribute('data-theme') === 'dark';
+  const gridColor = isDark ? 'rgba(42,38,26,0.7)' : 'rgba(180,168,140,0.35)';
+  const tickColor = isDark ? '#7a7060' : '#9a8e70';
+  const tipBg     = isDark ? '#1e1b14' : '#fdfaf3';
+  const tipBd     = isDark ? '#2a261a' : '#d8ceb4';
+  const tipTxt    = isDark ? '#ede3c4' : '#2c2618';
+  const goldColor = isDark ? '#c9a84c' : '#9a7a28';
+
+  chart = new Chart(document.getElementById('drawdownChart'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Free Margin',
+          data: balData,
+          borderColor: goldColor,
+          backgroundColor: isDark ? 'rgba(201,168,76,0.08)' : 'rgba(154,122,40,0.06)',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: goldColor,
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'Float P/L',
+          data: plData,
+          borderColor: '#e05050',
+          backgroundColor: 'rgba(224,80,80,0.06)',
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: '#e05050',
+          borderDash: [4, 3],
+          tension: 0.3,
+          fill: true,
+        },
+        {
+          label: 'Equity',
+          data: equityData,
+          borderColor: '#4caf6a',
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          pointRadius: 3,
+          pointBackgroundColor: '#4caf6a',
+          borderDash: [2, 2],
+          tension: 0.3,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          mode: 'index',
+          intersect: false,
+          backgroundColor: tipBg,
+          titleColor: goldColor,
+          bodyColor: tipTxt,
+          borderColor: tipBd,
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${fmtUSD(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: gridColor },
+          ticks: { color: tickColor, font: { size: 11, family: 'IBM Plex Mono' } }
+        },
+        y: {
+          grid: { color: gridColor },
+          ticks: { color: tickColor, font: { size: 11, family: 'IBM Plex Mono' }, callback: v => fmtUSD(v) }
+        }
+      }
+    }
+  });
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────
+function resetDefaults() {
+  document.getElementById('balance').value    = 10000;
+  document.getElementById('leverage').value   = 100;
+  document.getElementById('entry').value      = 3320;
+  document.getElementById('direction').value  = 'buy';
+  document.getElementById('baseLot').value    = 0.01;
+  document.getElementById('step').value       = 100;
+  document.getElementById('target').value     = 50;
+  document.getElementById('levels').value     = 6;
+  document.getElementById('multiplier').value = 2;
+  calculate();
+}
+
+// ── Auto-calculate (debounced) ─────────────────────────────────────────
+let _debounce = null;
+function scheduleCalc() {
+  clearTimeout(_debounce);
+  const dot = document.getElementById('autoCalcDot');
+  if (dot) dot.style.background = 'var(--amber)';
+  _debounce = setTimeout(() => {
+    calculate();
+    if (dot) dot.style.background = 'var(--green)';
+  }, 280);
+}
+
+['balance','leverage','entry','direction','baseLot','step','target','levels','multiplier']
+  .forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input',  scheduleCalc);
+      el.addEventListener('change', scheduleCalc);
+    }
+  });
+
+// ── Init ───────────────────────────────────────────────────────────────
+calculate();
+</script>
+</body>
+</html>
