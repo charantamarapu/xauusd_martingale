@@ -515,6 +515,9 @@ function fmt(n, d = 2) {
 function fmtUSD(n) {
   return (n < 0 ? '-$' : '$') + fmt(Math.abs(n));
 }
+function fmtCents(n) {
+  return (n < 0 ? '-¢' : '¢') + fmt(Math.abs(n * 100), 0);
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 function cssVar(name) {
@@ -624,8 +627,8 @@ function calculate() {
     warnEl.style.display = 'block';
     warnEl.innerHTML =
       `⚠ <strong>Margin Call Risk at Level ${bustLevel}</strong>`
-      + `<br>Cumulative margin required: <strong>${fmtUSD(needed)}</strong> &nbsp;|&nbsp; Account balance: <strong>${fmtUSD(balance)}</strong>`
-      + `<br>You need <strong>${fmtUSD(shortfall)}</strong> more than your current balance at level ${bustLevel}.`
+      + `<br>Cumulative margin required: <strong>${fmtCents(needed)}</strong> &nbsp;|&nbsp; Account balance: <strong>${fmtCents(balance)}</strong>`
+      + `<br>You need <strong>${fmtCents(shortfall)}</strong> more than your current balance at level ${bustLevel}.`
       + lotNote;
   } else {
     warnEl.style.display = 'none';
@@ -641,7 +644,7 @@ function calculate() {
     </div>
     <div class="stat animate-in">
       <div class="stat-label">Total Margin</div>
-      <div class="stat-val ${marginPct > 80 ? 'red' : 'amber'}">${fmtUSD(totalMarginUsed)}</div>
+      <div class="stat-val ${marginPct > 80 ? 'red' : 'amber'}">${fmtCents(totalMarginUsed)}</div>
     </div>
     <div class="stat animate-in">
       <div class="stat-label">Margin Used %</div>
@@ -649,11 +652,11 @@ function calculate() {
     </div>
     <div class="stat animate-in">
       <div class="stat-label">Free Margin</div>
-      <div class="stat-val ${last.freeMargin < 0 ? 'red' : last.freeMargin < balance * 0.2 ? 'amber' : 'green'}">${fmtUSD(last.freeMargin)}</div>
+      <div class="stat-val ${last.freeMargin < 0 ? 'red' : last.freeMargin < balance * 0.2 ? 'amber' : 'green'}">${fmtCents(last.freeMargin)}</div>
     </div>
     <div class="stat animate-in">
       <div class="stat-label">Worst Float P/L</div>
-      <div class="stat-val red">${fmtUSD(worstPL)}</div>
+      <div class="stat-val red">${fmtCents(worstPL)}</div>
     </div>
     <div class="stat animate-in">
       <div class="stat-label">Max Drawdown</div>
@@ -665,7 +668,7 @@ function calculate() {
     </div>
     <div class="stat animate-in">
       <div class="stat-label">Target Profit</div>
-      <div class="stat-val green">${fmtUSD(target)}</div>
+      <div class="stat-val green">${fmtCents(target)}</div>
     </div>
   `;
 
@@ -684,11 +687,11 @@ function calculate() {
         <td>${fmt(t.lot, 2)}</td>
         <td>${fmt(t.openPrice, 2)}</td>
         <td style="color:var(--gold)">${fmt(t.avgEntry, 2)}</td>
-        <td>${fmtUSD(t.marginReq)}</td>
-        <td>${fmtUSD(t.cumMargin)}</td>
-        <td style="color:${plColor}">${fmtUSD(t.portfolioPL)}</td>
+        <td>${fmtCents(t.marginReq)}</td>
+        <td>${fmtCents(t.cumMargin)}</td>
+        <td style="color:${plColor}">${fmtCents(t.portfolioPL)}</td>
         <td style="color:var(--gold)">${fmt(t.breakeven, 2)}</td>
-        <td style="color:${fmColor}">${fmtUSD(t.freeMargin)}</td>
+        <td style="color:${fmColor}">${fmtCents(t.freeMargin)}</td>
       </tr>`;
   });
 
@@ -770,7 +773,7 @@ function renderChart(trades, balance) {
           borderColor: tipBd,
           borderWidth: 1,
           callbacks: {
-            label: ctx => ` ${ctx.dataset.label}: ${fmtUSD(ctx.parsed.y)}`
+            label: ctx => ` ${ctx.dataset.label}: ${fmtCents(ctx.parsed.y)}`
           }
         }
       },
@@ -781,7 +784,7 @@ function renderChart(trades, balance) {
         },
         y: {
           grid: { color: gridColor },
-          ticks: { color: tickColor, font: { size: 11, family: 'IBM Plex Mono' }, callback: v => fmtUSD(v) }
+          ticks: { color: tickColor, font: { size: 11, family: 'IBM Plex Mono' }, callback: v => fmtCents(v) }
         }
       }
     }
