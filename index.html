@@ -381,11 +381,11 @@ tr:last-child td { border-bottom: none; }
           <option value="10">1:10</option>
           <option value="20">1:20</option>
           <option value="50">1:50</option>
-          <option value="100" selected>1:100</option>
+          <option value="100">1:100</option>
           <option value="200">1:200</option>
           <option value="500">1:500</option>
           <option value="1000">1:1000</option>
-          <option value="2000">1:2000</option>
+          <option value="2000" selected>1:2000</option>
         </select>
       </div>
     </div>
@@ -499,10 +499,20 @@ function toggleTheme() {
   const isDark = html.getAttribute('data-theme') === 'dark';
   const nextTheme = isDark ? 'light' : 'dark';
   html.setAttribute('data-theme', nextTheme);
+  localStorage.setItem('martingale_calculator_theme', nextTheme);
   document.getElementById('themeIcon').textContent  = nextTheme === 'dark' ? '🌙' : '☀️';
   document.getElementById('themeLabel').textContent = nextTheme === 'dark' ? 'DARK' : 'LIGHT';
   // Rebuild chart with updated colors
   calculate();
+}
+function loadTheme() {
+  const savedTheme = localStorage.getItem('martingale_calculator_theme');
+  if (savedTheme) {
+    const html = document.documentElement;
+    html.setAttribute('data-theme', savedTheme);
+    document.getElementById('themeIcon').textContent  = savedTheme === 'dark' ? '🌙' : '☀️';
+    document.getElementById('themeLabel').textContent = savedTheme === 'dark' ? 'DARK' : 'LIGHT';
+  }
 }
 document.querySelector('.theme-toggle').addEventListener('keydown', e => {
   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleTheme(); }
@@ -789,10 +799,39 @@ function renderChart(trades, balance) {
   });
 }
 
+const inputIds = ['balance','leverage','entry','direction','baseLot','step','target','levels','multiplier'];
+
+function saveSettings() {
+  const settings = {};
+  inputIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) settings[id] = el.value;
+  });
+  localStorage.setItem('martingale_calculator_settings', JSON.stringify(settings));
+}
+
+function loadSettings() {
+  const saved = localStorage.getItem('martingale_calculator_settings');
+  if (saved) {
+    try {
+      const settings = JSON.parse(saved);
+      inputIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && settings[id] !== undefined) {
+          el.value = settings[id];
+        }
+      });
+    } catch (e) {
+      console.error('Error loading settings:', e);
+    }
+  }
+}
+
 // ── Reset ──────────────────────────────────────────────────────────────
 function resetDefaults() {
+  localStorage.removeItem('martingale_calculator_settings');
   document.getElementById('balance').value    = 10000;
-  document.getElementById('leverage').value   = 100;
+  document.getElementById('leverage').value   = 2000;
   document.getElementById('entry').value      = 3320;
   document.getElementById('direction').value  = 'buy';
   document.getElementById('baseLot').value    = 0.01;
@@ -815,16 +854,21 @@ function scheduleCalc() {
   }, 280);
 }
 
-['balance','leverage','entry','direction','baseLot','step','target','levels','multiplier']
-  .forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('input',  scheduleCalc);
-      el.addEventListener('change', scheduleCalc);
-    }
-  });
+inputIds.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) {
+    const updateHandler = () => {
+      saveSettings();
+      scheduleCalc();
+    };
+    el.addEventListener('input',  updateHandler);
+    el.addEventListener('change', updateHandler);
+  }
+});
 
 // ── Init ───────────────────────────────────────────────────────────────
+loadTheme();
+loadSettings();
 calculate();
 </script>
 </body>
