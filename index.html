@@ -371,7 +371,7 @@ tr:last-child td { border-bottom: none; }
 
     <div class="grid2" style="margin-bottom:12px">
       <div class="field">
-        <label>Account Balance (USD)</label>
+        <label>Account Balance (USC)</label>
         <input id="balance" type="number" value="10000" min="100" step="100">
       </div>
       <div class="field">
@@ -417,7 +417,7 @@ tr:last-child td { border-bottom: none; }
         <input id="step" type="number" value="100" min="1" step="1">
       </div>
       <div class="field">
-        <label>Target Profit (USD)</label>
+        <label>Target Profit (USC)</label>
         <input id="target" type="number" value="50" min="1" step="1">
       </div>
     </div>
@@ -471,13 +471,13 @@ tr:last-child td { border-bottom: none; }
             <th>Level</th>
             <th>Side</th>
             <th>Lot Size</th>
-            <th>Open Price</th>
-            <th>Avg Entry</th>
-            <th>Margin Req</th>
-            <th>Cum. Margin</th>
-            <th>Portfolio P/L</th>
-            <th>Breakeven</th>
-            <th>Free Margin</th>
+            <th>Open Price (USD)</th>
+            <th>Avg Entry (USD)</th>
+            <th>Margin Req (USC)</th>
+            <th>Cum. Margin (USC)</th>
+            <th>Portfolio P/L (USC)</th>
+            <th>Breakeven (USD)</th>
+            <th>Free Margin (USC)</th>
           </tr>
         </thead>
         <tbody id="tradeBody"></tbody>
@@ -515,8 +515,9 @@ function fmt(n, d = 2) {
 function fmtUSD(n) {
   return (n < 0 ? '-$' : '$') + fmt(Math.abs(n));
 }
-function fmtCents(n) {
-  return (n < 0 ? '-¢' : '¢') + fmt(Math.abs(n * 100), 0);
+function fmtCents(n, d = 2) {
+  const decimals = (n % 1 === 0) ? 0 : d;
+  return (n < 0 ? '-¢' : '¢') + fmt(Math.abs(n), decimals);
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -537,7 +538,7 @@ function calculate() {
   const multiplier = parseFloat(document.getElementById('multiplier').value) || 2;
 
   // Guard against degenerate inputs
-  if (balance <= 0 || entry <= 0 || baseLot <= 0 || step <= 0 || target <= 0) return;
+  if (balance <= 0 || entry <= 0 || baseLot <= 0 || step <= 0 || target <= 0 || levels <= 0) return;
 
   const trades = [];
   let cumMargin = 0;
@@ -554,8 +555,8 @@ function calculate() {
       ? entry - step * i
       : entry + step * i;
 
-    // Margin required for this individual trade
-    const marginReq = (lot * GOLD_LOT_OZ * openPrice) / leverage;
+    // Margin required for this individual trade in USC
+    const marginReq = (lot * GOLD_LOT_OZ * openPrice * 100) / leverage;
 
     cumMargin += marginReq;
     cumLots   += lot;
@@ -564,24 +565,21 @@ function calculate() {
     // Average entry across all open trades so far
     const avgEntry = cumCost / cumLots;
 
-    // Free margin: balance minus total committed margin
-    const freeMargin = balance - cumMargin;
+    // Portfolio unrealised P/L in USC
+    const portfolioPL = direction === 'buy'
+      ? (openPrice - avgEntry) * cumLots * GOLD_LOT_OZ * 100
+      : (avgEntry - openPrice) * cumLots * GOLD_LOT_OZ * 100;
+
+    // Free margin: balance + portfolio P/L minus total committed margin
+    const freeMargin = balance + portfolioPL - cumMargin;
 
     // Breakeven price: price at which total portfolio profit = target
-    // profit = (closePrice - avgEntry) * cumLots * GOLD_LOT_OZ  (buy)
-    // profit = (avgEntry - closePrice) * cumLots * GOLD_LOT_OZ  (sell)
+    // profit (USC) = (closePrice - avgEntry) * cumLots * GOLD_LOT_OZ * 100
     // solving for closePrice:
-    const beOffset = target / (cumLots * GOLD_LOT_OZ);
+    const beOffset = target / (cumLots * GOLD_LOT_OZ * 100);
     const breakeven = direction === 'buy'
       ? avgEntry + beOffset
       : avgEntry - beOffset;
-
-    // Portfolio unrealised P/L if market is currently at openPrice (this level's price)
-    // i.e. the market just moved to the point where this new trade was opened
-    // FIX: was incorrectly using 'entry' (level-0 price) instead of cumulative avgEntry
-    const portfolioPL = direction === 'buy'
-      ? (openPrice - avgEntry) * cumLots * GOLD_LOT_OZ
-      : (avgEntry - openPrice) * cumLots * GOLD_LOT_OZ;
 
     const isBust = freeMargin < 0;
     if (isBust) anyBust = true;
@@ -610,7 +608,7 @@ function calculate() {
   const totalMarginUsed = last.cumMargin;
   const marginPct       = (totalMarginUsed / balance) * 100;
   const worstPL         = last.portfolioPL;          // most negative at final level
-  const maxDrawdownPct  = ((balance - last.freeMargin) / balance) * 100; // FIX: was never displayed
+  const maxDrawdownPct  = Math.max(0, -worstPL / balance) * 100;
 
   // ── Warning banner ──────────────────────────────────────────────────
   const warnEl = document.getElementById('warning');
@@ -706,7 +704,7 @@ function renderChart(trades, balance) {
   const labels     = trades.map(t => `L${t.level}`);
   const balData    = trades.map(t => parseFloat(t.freeMargin.toFixed(2)));
   const plData     = trades.map(t => parseFloat(t.portfolioPL.toFixed(2)));
-  const equityData = trades.map(t => parseFloat((t.freeMargin + t.portfolioPL).toFixed(2)));
+  const equityData = trades.map(t => parseFloat((balance + t.portfolioPL).toFixed(2)));
 
   if (chart) { chart.destroy(); chart = null; }
 
